@@ -8,6 +8,7 @@
 import json
 import sqlite3
 
+## Connect to Coinbase API
 import coinbase_info
 from coinbase.wallet.client import client
 
