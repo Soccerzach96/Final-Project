@@ -14,5 +14,5 @@ from coinbase.wallet.client import client
 
 
 
-
+## Create Client Connection to Coinbase API
 client = Client(coinbase_info.api_key, coinbase_info.api_secret)
