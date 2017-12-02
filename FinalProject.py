@@ -38,7 +38,7 @@ for product in client.get_products():
 
 
 
-# Returns the Price of Bitcoin every 30 days (Reverse from today's date)
+# Returns the Price of Ethereum every 30 days (Reverse from today's date)
 ether = client.get_product_historic_rates('ETH-USD', granularity = 60*60*24*30, start = '2015-01-05T00:00:00+00:00')
 # ether = client.getProductHistoricRates('BTC-USD', {'start': "2015-01-05T00:00:00+00:00"}, {'granularity': 60*60*24*30})
 for e in ether:
