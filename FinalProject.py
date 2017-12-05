@@ -1,6 +1,5 @@
 ## SI 206 2017
 ## Final Project
-
 ## Zachary Strong
 
 
@@ -14,22 +13,13 @@ import coinbase_info
 from coinbase.wallet.client import Client
 from coinbase.wallet.client import APIObject
 
-## Import GDAX API
+## Import GDAX API (Bitcoin, Ethereum, Litecoin)
 import gdax
 
-### COINBASE API
-## Create Client Connection to Coinbase API
-client = Client(coinbase_info.api_key, coinbase_info.api_secret)
-
-price = client.get_buy_price(currency_pair = 'BTC-USD')
-
-# print(price.amount)
-
-
-historic_Ethereum_Prices = client._make_api_object(client._get('v2', 'prices', 'ETH-USD', 'historic'), APIObject)
-
-# print(historic_Ethereum_Prices)
-
+## Import Quandl (U.S. Stocks)
+import quandl
+import quandl_info
+quandl.ApiConfig.api_key = quandl_info.api_key
 
 
 
@@ -46,7 +36,6 @@ try:
 	cache_file.close()
 except:
 	CACHE_DICTION = {}
-
 
 
 ## Function to obtain historic Bitcoin prices
@@ -109,12 +98,62 @@ def get_litecoin_historic_prices():
 		f.close()
 		return CACHE_DICTION['LTC-USD']
 
+## Function to obtain Quandl Information
+def get_stock_historic_prices(stock):
+	if stock in CACHE_DICTION:
+		print("Data was in the cache")
+		return CACHE_DICTION[stock]
+	else:
+		print("Making a request for new data...")
+		results = quandl.get_table('WIKI/PRICES', ticker = stock)
+		CACHE_DICTION[stock] = results.to_json()
+		f = open(CACHE_FNAME, "w")
+		f.write(json.dumps(CACHE_DICTION))
+		f.close()
+		return CACHE_DICTION[stock]
 
+## Function to obtain Quandl Information
+# def get_stock_historic_prices(stock):
+# 	if stock in CACHE_DICTION:
+# 		print("Data was in the cache")
+# 		return CACHE_DICTION[stock]
+# 	else:
+# 		print("Making a request for new data...")
+# 		results = quandl.get_table('WIKI/PRICES', ticker = stock)
+# 		CACHE_DICTION[stock] = str(results)
+# 		f = open(CACHE_FNAME, "w")
+# 		f.write(json.dumps(CACHE_DICTION))
+# 		f.close()
+# 		return CACHE_DICTION[stock]
+
+# results = quandl.get_table('WIKI/PRICES', ticker = 'AAPL')
+# s = results.to_json()
+# print(type(s))
 
 ## Returning Cryptocurrency Prices:
 historic_Bitcoin = get_bitcoin_historic_prices()
 historic_Ethereum = get_ethereum_historic_prices()
 historic_Litecoin = get_litecoin_historic_prices()
+
+# historic_Stock = quandl.get_table('WIKI/PRICES', ticker = 'FB')
+# print(historic_Stock)
+
+## Quandl
+# current_CrudeOil = quandl.get("EIA/PET_RWTC_D")
+# stock_price = quandl.Dataset('WIKI/AAPL').data()
+# print(stock_price)
+# test = quandl.get_table('WIKI/PRICES', ticker = 'AAPL')
+# print(test)
+
+# results = quandl.get_table('WIKI/PRICES', ticker = 'AAPL')
+# s = results.to_json()
+# print(type(s))
+# s = json.loads(results.T.to_json()).values()
+# ss = dict(s)
+# print(ss.keys)
+
+# historic_Stock = get_stock_historical_prices('APPL')
+# print(historic_Stock)
 
 
 
@@ -152,3 +191,22 @@ conn.commit()
 
 cur.close()
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import python_forex_quotes
+# import forge_info
+
+# client_1forge = python_forex_quotes.ForexDataClient(forge_info.api_key)
+# conversion = client_1forge.convert('EUR', 'USD', 100)
+# print(conversion)
