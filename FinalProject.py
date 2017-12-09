@@ -5,6 +5,7 @@
 import json
 import sqlite3
 import datetime
+import requests
 
 ## Import Coinbase API
 import coinbase_info
@@ -25,7 +26,8 @@ import plotly.plotly as py
 import plotly.graph_objs as go
 plotly.tools.set_credentials_file(username = plotly_info.username, api_key = plotly_info.api_key)
 
-
+## Import Quandl
+import quandl
 
 ## Setup Investments Cache
 CACHE_FNAME = "investments_cache.json"
@@ -142,6 +144,54 @@ def get_coinbase_transactions():
 		f.close()
 		return CACHE_DICTION['Coinbase_Transactions']
 
+def get_gold_prices(dates):
+	if 'Gold' in CACHE_DICTION:
+		print("Data was in the cache")
+		return CACHE_DICTION['Gold']
+	else:
+		print("Making a request for new data...")
+		api_url = 'https://www.quandl.com/api/v1/datasets/LBMA/GOLD.json'
+		session = requests.Session()
+		raw_data = session.get(api_url)
+		gold_data = raw_data.json()
+		gold_data = dict(gold_data)
+		historic_prices = list()
+		for data in gold_data['data']:
+			if data[0] == '2017-12-08':
+				historic_prices.append(data)
+			for date in dates:
+				if data[0] == date:
+					historic_prices.append(data)
+		CACHE_DICTION['Gold'] = historic_prices
+		f = open(CACHE_FNAME, "w")
+		f.write(json.dumps(CACHE_DICTION))
+		f.close()
+		return CACHE_DICTION['Gold']
+
+def get_stock_prices(dates, ticker):
+	if ticker in CACHE_DICTION:
+		print("Data was in the cache")
+		return CACHE_DICTION[ticker]
+	else:
+		print("Making a request for new data...")
+		api_url = 'https://www.quandl.com/api/v3/datasets/WIKI/%s.json' % ticker
+		session = requests.Session()
+		raw_data = session.get(api_url)
+		stock_data = raw_data.json()
+		stock_data = dict(stock_data['dataset'])
+		historic_prices = list()
+		for data in stock_data['data']:
+			if data[0] == '2017-12-08':
+				historic_prices.append(data)
+			for date in dates:
+				if data[0] == date:
+					historic_prices.append(data)
+		CACHE_DICTION[ticker] = historic_prices
+		f = open(CACHE_FNAME, "w")
+		f.write(json.dumps(CACHE_DICTION))
+		f.close()
+		return CACHE_DICTION[ticker]
+
 
 
 ####################################################
@@ -175,7 +225,21 @@ current_ethereum_price = gdax_client.get_product_historic_rates('ETH-USD')[0][3]
 print('Current Ethereum Price: ', current_ethereum_price)
 
 current_litecoin_price = gdax_client.get_product_historic_rates('LTC-USD')[0][3]
-print('Current Litecoin Price: ', current_litecoin_price)
+print('Current Litecoin Price: ', current_litecoin_price, '\n')
+
+## Returning List of Range of Dates for Gold Prices
+dates = list()
+for date in historic_Bitcoin:
+	dates.append(date[0])
+
+## Returning List of Gold Prices
+historic_Gold = get_gold_prices(dates)
+print('Current Price of Gold: ', historic_Gold[0][1], '\n')
+
+## Returning List of Stock Prices
+stock_name = input('Ticker of Stock: ')
+stock_info = get_stock_prices(dates, stock_name)
+print('Current Price of', stock_name, ':', stock_info[0][1], '\n')
 
 
 
@@ -228,6 +292,22 @@ for coin in historic_Litecoin:
 	cur.execute('INSERT OR IGNORE INTO Litecoin (Date, Initial_Price, End_Price, Price_High, Price_Low, Volume) VALUES (?, ?, ?, ?, ?, ?)', tup)
 conn.commit()
 
+## Creating Gold Table
+cur.execute('DROP TABLE IF EXISTS Gold')
+cur.execute('CREATE TABLE Gold (Date TEXT, USD_Price INT)')
+for gold in historic_Gold:
+	tup = gold[0], gold[1]
+	cur.execute('INSERT OR IGNORE INTO Gold (Date, USD_Price) VALUES (?, ?)', tup)
+conn.commit()
+
+## Creating Stock Table
+cur.execute('DROP TABLE IF EXISTS Stock')
+cur.execute('CREATE TABLE Stock (Date TEXT, Trading_Price INT)')
+for stock in stock_info:
+	tup = stock[0], stock[1]
+	cur.execute('INSERT OR IGNORE INTO Stock (Date, Trading_Price) VALUES (?, ?)', tup)
+conn.commit()
+
 
 
 ####################################################
@@ -237,17 +317,17 @@ conn.commit()
 ############# Coinbase Portfolio Pie Chart #########
 
 ## Pull Coinbase Account Names and Values
-# cur.execute("SELECT Account_Name FROM Coinbase_Accounts")
-# portfolio_accounts = cur.fetchall()
-# print(portfolio_accounts)
+cur.execute("SELECT Account_Name FROM Coinbase_Accounts")
+portfolio_accounts = cur.fetchall()
+print(portfolio_accounts)
 
-# cur.execute("SELECT Account_Value FROM Coinbase_Accounts")
-# portfolio_value = cur.fetchall()
-# print(portfolio_value)
+cur.execute("SELECT Account_Value FROM Coinbase_Accounts")
+portfolio_value = cur.fetchall()
+print(portfolio_value)
 
-# ## Setup Portfolio Distribution Pie Chart
-# trace = go.Pie(labels = portfolio_accounts, values = portfolio_value)
-# py.iplot([trace], filename = 'coinbase_portfolio_piechart')
+## Setup Portfolio Distribution Pie Chart
+trace = go.Pie(labels = portfolio_accounts, values = portfolio_value)
+py.iplot([trace], filename = 'coinbase_portfolio_piechart')
 
 
 ####### Coinbase Portfolio vs. GDAX Prices #########
@@ -310,7 +390,7 @@ for date in historical_ethereum:
 
 trace3 = go.Scatter(x = h_ethereum_dates, y = h_ethereum_prices, mode = 'lines', name = 'Ethereum Prices')
 
-# ## Pull Litecoin Trades and Calculate Single Litecoin Price at Time of Trade
+## Pull Litecoin Trades and Calculate Single Litecoin Price at Time of Trade
 cur.execute("SELECT Date, Cryptocurrency_Amount, USD_Amount FROM Coinbase_Transactions WHERE Cryptocurrency == 'LTC'")
 l_trades = cur.fetchall()
 l_trades = list(l_trades)
@@ -339,12 +419,27 @@ for date in historical_litecoin:
 
 trace5 = go.Scatter(x = h_litecoin_dates, y = h_litecoin_prices, mode = 'lines', name = 'Litecoin Prices')
 
+## Pull Historic Gold Prices
+cur.execute("SELECT Date FROM Gold")
+g_dates = cur.fetchall()
+cur.execute("SELECT USD_Price FROM Gold")
+g_prices = cur.fetchall()
 
-data = [trace0, trace1, trace2, trace3, trace4, trace5]
+trace6 = go.Scatter(x = g_dates, y = g_prices, mode = 'lines', name = 'Gold Prices')
 
-layout = dict(title = 'Cryptocurrency Prices and Portfolio', yaxis = dict(zeroline = False), xaxis = dict(zeroline = False))
+## Pull Historic Stock Prices
+cur.execute("SELECT Date FROM Stock")
+stock_dates = cur.fetchall()
+cur.execute("SELECT Trading_Price FROM Stock")
+stock_prices = cur.fetchall()
+
+trace7 = go.Scatter(x = stock_dates, y = stock_prices, mode = 'lines', name = stock_name + 'Prices')
+
+data = [trace0, trace1, trace2, trace3, trace4, trace5, trace6, trace7]
+
+layout = dict(title = 'Investment Prices and Portfolio', yaxis = dict(zeroline = False), xaxis = dict(zeroline = False))
 fig = dict(data = data, layout = layout)
-py.iplot(fig, filename = 'Cryptocurrency_Graph')
+py.iplot(fig, filename = 'Investment_Graph')
 
 
 
