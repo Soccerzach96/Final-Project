@@ -11,7 +11,7 @@ import requests
 import coinbase_info
 from coinbase.wallet.client import Client
 from coinbase.wallet.client import APIObject
-## Creat Client Connection to Coinbase API
+## Create Client Connection to Coinbase API
 coinbase_client = Client(coinbase_info.api_key, coinbase_info.api_secret)
 
 ## Import GDAX API (Bitcoin, Ethereum, Litecoin)
@@ -28,6 +28,12 @@ plotly.tools.set_credentials_file(username = plotly_info.username, api_key = plo
 
 ## Import Quandl
 import quandl
+
+## Import Zillow
+import zillow
+import zillow_info
+zillow_key = zillow_info.api_key
+api = zillow.ValuationApi()
 
 ## Setup Investments Cache
 CACHE_FNAME = "investments_cache.json"
@@ -48,12 +54,11 @@ except:
 ## Function to obtain historic Bitcoin prices (GDAX)
 def get_bitcoin_historic_prices():
 	if 'BTC-USD' in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION['BTC-USD']
 	else:
-		print("Making a request for new data...")
-		## Request Historic Bitcoin Prices in intervals of 30 days
-		results = gdax_client.get_product_historic_rates('BTC-USD', granularity = 60*60*24*30)
+		## Request Historic Bitcoin Prices from past 100 days
+		results = gdax_client.get_product_historic_rates('BTC-USD', granularity = 60*60*24)
+		results = results[:100]
 		for b in results:
 			## Convert Given Unixtime into Datetime
 			unixTime = b[0]
@@ -70,12 +75,11 @@ def get_bitcoin_historic_prices():
 ## Function to obtain historic Ethereum prices (GDAX)
 def get_ethereum_historic_prices():
 	if 'ETH-USD' in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION['ETH-USD']
 	else:
-		print("Making a request for new data...")
-		## Request Historic Ethereum Prices in intervals of 30 days
-		results = gdax_client.get_product_historic_rates('ETH-USD', granularity = 60*60*24*30)
+		## Request Historic Ethereum Prices from past 100 days
+		results = gdax_client.get_product_historic_rates('ETH-USD', granularity = 60*60*24)
+		results = results[:100]
 		for b in results:
 			## Convert Given Unixtime into Datetime
 			unixTime = b[0]
@@ -92,12 +96,11 @@ def get_ethereum_historic_prices():
 ## Function to obtain historic Litecoin prices (GDAX)
 def get_litecoin_historic_prices():
 	if 'LTC-USD' in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION['LTC-USD']
 	else:
-		print("Making a request for new data...")
-		## Request Historic Litecoin Prices in intervals of 30 days
-		results = gdax_client.get_product_historic_rates('LTC-USD', granularity = 60*60*24*30)
+		## Request Historic Litecoin Prices from past 100 days
+		results = gdax_client.get_product_historic_rates('LTC-USD', granularity = 60*60*24)
+		results = results[:100]
 		for b in results:
 			## Convert Given Unixtime into Datetime
 			unixTime = int(b[0])
@@ -105,20 +108,18 @@ def get_litecoin_historic_prices():
 			convert_unixTime = str(convert_unixTime)
 			convert_unixTime = convert_unixTime[:10]
 			b[0] = convert_unixTime
-		print(type(results))
 		CACHE_DICTION['LTC-USD'] = results
 		f = open(CACHE_FNAME, "w")
 		f.write(json.dumps(CACHE_DICTION))
 		f.close()
 		return CACHE_DICTION['LTC-USD']
 
-## Function to obtain Coinbase Portfolio Accounts
+## Function to obtain Coinbase Portfolio Accounts (Coinbase)
 def get_coinbase_accounts():
 	if 'Coinbase_Accounts' in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION['Coinbase_Accounts']
 	else:
-		print("Making a request for new data...")
+		## Obtain Dictionary of USD, BTC, ETH, and LTC Accounts
 		accounts = coinbase_client.get_accounts()
 		accounts = accounts.data
 		CACHE_DICTION['Coinbase_Accounts'] = accounts
@@ -127,14 +128,15 @@ def get_coinbase_accounts():
 		f.close()
 		return CACHE_DICTION['Coinbase_Accounts']
 
+## Function to obtain Coinbase Account Transactions (Coinbase)
 def get_coinbase_transactions():
 	if 'Coinbase_Transactions' in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION['Coinbase_Transactions']
 	else:
-		print("Making a request for new data...")
+		## Obtain Dictionary of USD, BTC, ETH, and LTC Accounts
 		accounts = coinbase_client.get_accounts()
 		transactions = list()
+		## Iterate through each account and append the transactions to new list
 		for account in accounts.data:
 			transaction = account.get_transactions()
 			transactions.append(transaction.data)
@@ -144,21 +146,22 @@ def get_coinbase_transactions():
 		f.close()
 		return CACHE_DICTION['Coinbase_Transactions']
 
+## Function to obtain Historic Gold Prices (Quandl)
+## Dates variable used to match prices of all investments by specific dates
 def get_gold_prices(dates):
 	if 'Gold' in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION['Gold']
 	else:
-		print("Making a request for new data...")
+		## Connect to Gold Panda Dataset in Quandl API
 		api_url = 'https://www.quandl.com/api/v1/datasets/LBMA/GOLD.json'
+		## Convert Panda Dataset into JSON File
 		session = requests.Session()
 		raw_data = session.get(api_url)
 		gold_data = raw_data.json()
 		gold_data = dict(gold_data)
 		historic_prices = list()
+		## Create list of prices for specific dates
 		for data in gold_data['data']:
-			if data[0] == '2017-12-08':
-				historic_prices.append(data)
 			for date in dates:
 				if data[0] == date:
 					historic_prices.append(data)
@@ -168,21 +171,23 @@ def get_gold_prices(dates):
 		f.close()
 		return CACHE_DICTION['Gold']
 
+## Function to obtain Historic Stock Prices (Quandl)
+## Dates variable used to match prices of all investments by specific dates
+## Ticker variable from user input to determine which stock to pull data for
 def get_stock_prices(dates, ticker):
 	if ticker in CACHE_DICTION:
-		print("Data was in the cache")
 		return CACHE_DICTION[ticker]
 	else:
-		print("Making a request for new data...")
+		## Connect to Stock Panda Dataset in Quandl API
 		api_url = 'https://www.quandl.com/api/v3/datasets/WIKI/%s.json' % ticker
+		## Convert Panda Dataset into JSON File
 		session = requests.Session()
 		raw_data = session.get(api_url)
 		stock_data = raw_data.json()
 		stock_data = dict(stock_data['dataset'])
 		historic_prices = list()
+		## Create list of prices for specific dates
 		for data in stock_data['data']:
-			if data[0] == '2017-12-08':
-				historic_prices.append(data)
 			for date in dates:
 				if data[0] == date:
 					historic_prices.append(data)
@@ -192,13 +197,37 @@ def get_stock_prices(dates, ticker):
 		f.close()
 		return CACHE_DICTION[ticker]
 
+##
+def get_property_comps(address, zipcode):
+	if address in CACHE_DICTION:
+		return CACHE_DICTION[address]
+	else:
+		data = api.GetSearchResults(zillow_key, address, zipcode)
+		comps = api.GetComps(count = 25, zws_id = zillow_key, zpid = data.zpid)
+		property_info_list = list()
+		for comp in comps['comps']:
+			individual_property = list()
+			individual_property.append(comp.full_address.street)
+			individual_property.append(comp.full_address.zipcode)
+			individual_property.append(comp.full_address.city)
+			individual_property.append(comp.full_address.state)
+			individual_property.append(comp.zestiamte.amount)
+			individual_property.append(comp.zestiamte.valuation_range_low)
+			individual_property.append(comp.zestiamte.valuation_range_high)
+			property_info_list.append(individual_property)
+		CACHE_DICTION[address] = property_info_list
+		f = open(CACHE_FNAME, "w")
+		f.write(json.dumps(CACHE_DICTION))
+		f.close()
+		return CACHE_DICTION[address]
+
 
 
 ####################################################
 ################ FUNCTION CALLS ####################
 ####################################################
 
-## Returning List of Cryptocurrency Prices:
+## Returning List of Historic Cryptocurrency Prices:
 historic_Bitcoin = get_bitcoin_historic_prices()
 historic_Ethereum = get_ethereum_historic_prices()
 historic_Litecoin = get_litecoin_historic_prices()
@@ -208,12 +237,21 @@ coinbase_transactions = get_coinbase_transactions()
 
 ## Returning List of Coinbase Accounts
 coinbase_portfolio = get_coinbase_accounts()
+print('###################################')
+print('#### Personal Coinbase Account ####')
+print('###################################', '\n')
+total_worth = 0
 for account in coinbase_portfolio:
 	print(account['name'])
 	print('Balance: ' + account['balance']['amount'], account['balance']['currency'])
 	print('Worth: ' + account['native_balance']['amount'], account['native_balance']['currency'] + '\n')
+	total_worth += float(account['native_balance']['amount'])
+print('Total Coinbase Worth: ', total_worth, '\n')
 
 ## Returning Current Cryptocurrency Prices:
+print('###################################')
+print('## Current Cryptocurrency Prices ##')
+print('###################################', '\n')
 current_date = gdax_client.get_time()
 current_date = current_date['iso'][:10]
 print('Date: ', current_date)
@@ -234,12 +272,34 @@ for date in historic_Bitcoin:
 
 ## Returning List of Gold Prices
 historic_Gold = get_gold_prices(dates)
+print('###################################')
+print('###### Current Price of Gold ######')
+print('###################################', '\n')
 print('Current Price of Gold: ', historic_Gold[0][1], '\n')
 
 ## Returning List of Stock Prices
+print('###################################')
+print('###### Current Price of Stock #####')
+print('###################################', '\n')
 stock_name = input('Ticker of Stock: ')
 stock_info = get_stock_prices(dates, stock_name)
 print('Current Price of', stock_name, ':', stock_info[0][1], '\n')
+
+## Returning Comps of Desired Property
+print('###################################')
+print('######## Comps of Property ########')
+print('###################################', '\n')
+print('Format of User Input: 1523 Maryland Blvd, Birmingham, MI')
+zillow_address = input('Property Address: ')
+zillow_zipcode = input('Property Zipcode: ')
+property_info = get_property_comps(zillow_address, zillow_zipcode)
+
+data = api.GetSearchResults(zillow_key, zillow_address, zillow_zipcode)
+zestimate = api.GetZEstimate(zws_id = zillow_key, zpid = data.zpid)
+property_valuation = zestimate.zestiamte.amount
+print('\n')
+print("Valuation of Property: $", property_valuation)
+print("Look at SQLite3 Table for Addresses and Valuations of Comps", '\n')
 
 
 
@@ -308,6 +368,14 @@ for stock in stock_info:
 	cur.execute('INSERT OR IGNORE INTO Stock (Date, Trading_Price) VALUES (?, ?)', tup)
 conn.commit()
 
+## Creating Property Table
+cur.execute('DROP TABLE IF EXISTS Property')
+cur.execute('CREATE TABLE Property (Street TEXT, Zipcode TEXT, City TEXT, State TEXT, ZEstimate INT, Valuation_Range_Low INT, Valuation_Range_High INT)')
+for comp in property_info:
+	tup = comp[0], comp[1], comp[2], comp[3], comp[4], comp[5], comp[6]
+	cur.execute('INSERT OR IGNORE INTO Property (Street, Zipcode, City, State, ZEstimate, Valuation_Range_Low, Valuation_Range_High) VALUES (?, ?, ?, ?, ?, ?, ?)', tup)
+conn.commit()
+
 
 
 ####################################################
@@ -319,11 +387,9 @@ conn.commit()
 ## Pull Coinbase Account Names and Values
 cur.execute("SELECT Account_Name FROM Coinbase_Accounts")
 portfolio_accounts = cur.fetchall()
-print(portfolio_accounts)
 
 cur.execute("SELECT Account_Value FROM Coinbase_Accounts")
 portfolio_value = cur.fetchall()
-print(portfolio_value)
 
 ## Setup Portfolio Distribution Pie Chart
 trace = go.Pie(labels = portfolio_accounts, values = portfolio_value)
@@ -433,11 +499,11 @@ stock_dates = cur.fetchall()
 cur.execute("SELECT Trading_Price FROM Stock")
 stock_prices = cur.fetchall()
 
-trace7 = go.Scatter(x = stock_dates, y = stock_prices, mode = 'lines', name = stock_name + 'Prices')
+trace7 = go.Scatter(x = stock_dates, y = stock_prices, mode = 'lines', name = stock_name + ' Prices')
 
 data = [trace0, trace1, trace2, trace3, trace4, trace5, trace6, trace7]
 
-layout = dict(title = 'Investment Prices and Portfolio', yaxis = dict(zeroline = False), xaxis = dict(zeroline = False))
+layout = dict(title = 'Investment Prices and Portfolio', yaxis = dict(title = 'PRICE'), xaxis = dict(title = 'DATE'))
 fig = dict(data = data, layout = layout)
 py.iplot(fig, filename = 'Investment_Graph')
 
